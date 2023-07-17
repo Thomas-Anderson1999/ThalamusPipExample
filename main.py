@@ -104,8 +104,8 @@ if __name__ == '__main__':
             BoundBoxImg = Color_image.copy();
             for i in range(BoundBoxNum):
                 x1 = BoundBox[4 * i + 0]
-                y1 = BoundBox[4 * i + 1]
-                x2 = BoundBox[4 * i + 2]
+                x2 = BoundBox[4 * i + 1]
+                y1 = BoundBox[4 * i + 2]
                 y2 = BoundBox[4 * i + 3]
                 print("BoundBox : {0} {1} {2} {3}".format(x1, y1, x2, y2))
                 cv2.rectangle(BoundBoxImg, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=1, lineType=cv2.LINE_4,  shift=0)
