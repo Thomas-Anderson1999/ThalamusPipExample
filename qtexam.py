@@ -33,8 +33,8 @@ class Window(QWidget):
 
         label = [["PosX", "PosY", "PosZ", "AttX", "AttY", "AttZ"]]
         editDefault = [["0", "0", "0", "0", "0", "0"]]
-        buttonText = ["Pos Set", "Att Set", "Pos/Att Set", "BirdView"]
-        buttonFunc = [self.globalPosSet, self.globalAttSet, self.globalPosAttSet, self.globalBirdview]
+        buttonText = ["Get Global", "Pos Set", "Att Set", "Pos/Att Set", "BirdView"]
+        buttonFunc = [self.getGlobal, self.globalPosSet, self.globalAttSet, self.globalPosAttSet, self.globalBirdview]
         subgrid, self.globalCoordEdit = self.createGroupBox("Global Coord Test", label, editDefault, buttonText, buttonFunc)
         mainGrid.addWidget(subgrid, 1, 0)
 
@@ -99,12 +99,22 @@ class Window(QWidget):
         return groupBox, editList
 
     def InitEngine(self):
-
         AsmFileName = self.startEdit[0].text().encode('UTF-8')
         SimWindowText = self.startEdit[1].text().encode('UTF-8')
         InitSimulation(AsmFileName, SimWindowText)
         pass
+
     #+Global Coord Button Func
+    def getGlobal(self):
+        px, py, pz = GetGlobalPos()
+        ax, ay, az = GetGlobalAtt()
+        self.globalCoordEdit[0].setText(str(px))
+        self.globalCoordEdit[1].setText(str(py))
+        self.globalCoordEdit[2].setText(str(pz))
+        self.globalCoordEdit[3].setText(str(ax))
+        self.globalCoordEdit[4].setText(str(ay))
+        self.globalCoordEdit[5].setText(str(az))
+
     def globalPosSet(self):
         x = float(self.globalCoordEdit[0].text())
         y = float(self.globalCoordEdit[1].text())
@@ -134,7 +144,7 @@ class Window(QWidget):
         if -1 != objID:
             self.objControlEdit[0].setText(str(objID))
             self.objControlEdit[1].setText(str(GetObjType(objID)))
-            self.objControlEdit[2].setText(str("Name"))
+            self.objControlEdit[2].setText(GetObjName(objID))
             x,y,z = GetObjPos(objID)
             self.objControlEdit[3].setText(str(x))
             self.objControlEdit[4].setText(str(y))
@@ -160,6 +170,9 @@ class Window(QWidget):
             InitializeRenderFacet(-1, -1)
     def objSetName(self):
         print("sss")
+        objID = int(self.objControlEdit[0].text())
+        if objID != -1:
+            SetObjName(objID, self.objControlEdit[2].text())
     def objSetPos(self):
         objID = int(self.objControlEdit[0].text())
         if objID != -1:
