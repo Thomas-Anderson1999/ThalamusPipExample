@@ -13,9 +13,10 @@ if __name__ == '__main__':
     print(cv2.__version__)
     print(os.getcwd())
 
+    LoadThalamusInterface()
+
     AsmFileName = b"Script.txt"
-    SimWindowText = b"GL Exam1"
-    InitSimulation(AsmFileName, SimWindowText)
+    InitEngine(AsmFileName, 1280, 720, 0)
 
     AsmFileName = b"ScriptRover.txt"
     InitEngine(AsmFileName, 1280, 720, 1)
