@@ -5,6 +5,7 @@ import os
 import numpy as np
 import time
 
+from ThalamusDSloader import *
 from ThalamusEngine.Interface import *
 
 
@@ -25,7 +26,7 @@ class Window(QWidget):
         mainGrid = QGridLayout()
 
         label = [["ScriptFile:", "EngineName:"]]
-        editDefault = [["Script.txt", "Thalamus QT Example"]]
+        editDefault = [["ScriptFreeModel.txt", "Thalamus QT Example"]]
         buttonText = ["Engine Start"]
         buttonFunc = [self.InitEngine]
         subgrid, self.startEdit = self.createGroupBox("Global Coord Test", label, editDefault, buttonText, buttonFunc)
@@ -59,10 +60,10 @@ class Window(QWidget):
         subgrid, self.func1Edit = self.createGroupBox("Scene Generation", label, editDefault, buttonText, buttonFunc)
         mainGrid.addWidget(subgrid, 4, 0)
 
-        label = [["DepthMap:", "Width", "Height", "MeshUp Inv", "FreeModelNum", "Thread"],["ColorImg:"]]
-        editDefault = [["Dataset03/DepthBin03.txt","300", "300", "9", "4", "12"],["Dataset03/Color03.png"]]
-        buttonText = ["MeshUp", "Texture Overay", "Texure Int", "TextureView"]
-        buttonFunc = [self.func2MeshUp, self.func2TexOveray, self.func2TexInt, self.func2TexView]
+        label = [["DepthMap:", "Width", "Height", "MeshUp Inv", "FreeModelNum", "Thread"],["ColorImg:", "SeqDataset"]]
+        editDefault = [["Dataset/Dataset03/DepthBin03.txt","300", "300", "9", "4", "12"],["Dataset/Dataset03/Color03.png", "Dataset/SimulFW/"]]
+        buttonText = ["MeshUp", "Texture Overay", "Texure Int", "TextureView", "bulkDS overlay"]
+        buttonFunc = [self.func2MeshUp, self.func2TexOveray, self.func2TexInt, self.func2TexView, self.func2bulkDsOverlay]
         subgrid, self.func2Edit = self.createGroupBox("Mesh up, Texture Overay", label, editDefault, buttonText, buttonFunc)
         mainGrid.addWidget(subgrid, 5, 0)
 
@@ -70,6 +71,61 @@ class Window(QWidget):
         self.setWindowTitle("Thalamus Engine UI")
 
         self.resize(600, -1)
+
+    def func2bulkDsOverlay(self):
+        datasetPath = self.func2Edit[7].text()
+        image_FileName, groundtruth_Filename, depth_Filename, depth_Width, depth_Height = getMetadata(datasetPath=datasetPath, filename="meta.json")
+
+        if image_FileName != None:
+            imgcnt = 0
+            GroundTruth = getGroundTruth(groundtruth_Filename)
+
+
+            #+Mesh up
+            depInv = int(self.func2Edit[3].text())
+            MeshUpType = int(self.func2Edit[4].text())
+            Depth_Map = np.zeros((depth_Height, depth_Width), np.float32)
+            Depth_Mask = np.zeros((depth_Height, depth_Width, 3), np.uint8)
+            if 0 != LoadBinDepthMapPnt(depth_Filename, depth_Width, depth_Height, 0, 10000, Depth_Map.ctypes, Depth_Mask.ctypes, imgcnt):
+                ret = ObjMeshUp(depth_Width, depth_Height, MeshUpType, depInv)
+                print("ObjMeshUp:", ret)
+                InitializeRenderFacet(-1, -1)
+            # +Mesh up
+
+
+            cap = cv2.VideoCapture(image_FileName)
+            while cap.isOpened():
+                success, image = cap.read()
+                if not success:
+                    print("Dataset Complete")
+                    break
+
+                print("imgcnt:", imgcnt, "(GT)x,y,z,r,p,y:", GroundTruth[imgcnt][0], GroundTruth[imgcnt][1], GroundTruth[imgcnt][2], GroundTruth[imgcnt][3], GroundTruth[imgcnt][4], GroundTruth[imgcnt][5])
+                SetGlobalPosition(-GroundTruth[imgcnt][0], -GroundTruth[imgcnt][1], -GroundTruth[imgcnt][2])
+                SetGlobalAttitude(-GroundTruth[imgcnt][3], -GroundTruth[imgcnt][4], -GroundTruth[imgcnt][5])
+                InitializeRenderFacet(-1, -1)
+
+                imgcnt += 1
+                cv2.imshow('image', image)
+                """
+                Depth_Map = np.zeros((depth_Height, depth_Width), np.float32)
+                Depth_Mask = np.zeros((depth_Height, depth_Width, 3), np.uint8)
+                if 0 != LoadBinDepthMapPnt(depth_Filename, depth_Width, depth_Height, 0, 10000, Depth_Map.ctypes, Depth_Mask.ctypes, imgcnt):
+                    Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
+                    cv2.imshow("Depth Map", Depth_Map)
+                """
+                #image = cv2.resize(image, (300, 300), interpolation=cv2.INTER_AREA)
+                h, w, _ = image.shape
+                TexureOveray(6, image.ctypes, w, h, 1280, 720)
+
+                if cv2.waitKey(1) & 0xFF == 27:
+                    break
+
+            cap.release()
+        else:
+            print("Error on dataset")
+
+
 
     def createGroupBox(self, gbxName, labeltext, editDefault, buttonText, buttonFunc):
         groupBox = QGroupBox(gbxName)
@@ -345,7 +401,7 @@ class Window(QWidget):
             Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
             cv2.imshow("Depth Map", Depth_Map)
             ret = ObjMeshUp(depWidth, depHeight, MeshUpType, depInv)
-            print(ret)
+            print("ObjMeshUp:", ret)
             InitializeRenderFacet(-1, -1)
         else:
             print("Loading Error")
