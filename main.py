@@ -14,7 +14,21 @@ if __name__ == '__main__':
 
     AsmFileName = b"Script.txt"
     SimWindowText = b"GL Exam1"
-    InitSimulation(AsmFileName, SimWindowText)
+
+    if True == LoadThalamusInterface():
+        errCode = InitEngine(AsmFileName)
+        if errCode != 0:
+            errMsg = ""
+            if errCode & 1 != 0:
+                errMsg += "env.txt "
+            if errCode & 2 != 0:
+                errMsg += "script"
+            print("Initialize Error:" + str(errCode), "Error On " + errMsg)
+
+        StartExt3DEngine(AsmFileName, SimWindowText)
+        time.sleep(0.5)
+    else:
+        OnMsgText("Error on Loading Library")
 
     Color_width = 1280
     Color_Height = 720
