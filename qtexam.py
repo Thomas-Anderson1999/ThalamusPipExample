@@ -4,10 +4,11 @@ import cv2
 import os
 import numpy as np
 import time
+import math
 
 from ThalamusDSloader import *
 from ThalamusEngine.Interface import *
-
+from cvMatching import get_SIFT_mathching, show_matching
 
 #+UI
 from PyQt5.QtWidgets import *
@@ -26,7 +27,7 @@ class Window(QWidget):
         mainGrid = QGridLayout()
 
         label = [["ScriptFile:", "EngineName:"]]
-        editDefault = [["ScriptFreeModel.txt", "Thalamus QT Example"]]
+        editDefault = [["Script.txt", "Thalamus QT Example"]]
         buttonText = ["Engine Start"]
         buttonFunc = [self.InitEngine]
         subgrid, self.startEdit = self.createGroupBox("Global Coord Test", label, editDefault, buttonText, buttonFunc)
@@ -55,44 +56,145 @@ class Window(QWidget):
 
         label = [["SrcPosX", "SrcPosY", "SrcWidth", "SrcHeight", "DestWidth", "DestHeight"], ["ObjID", "CPU Core"]]
         editDefault = [["0", "0", "1280", "720", "300", "300"], ["-1", "12"]]
-        buttonText = ["DepthMap", "ColorMap", "NoShade", "LightEff", "Bounding Box"]
-        buttonFunc = [self.funcDepthMap, self.funcColorMap, self.funcNoShade, self.funcLightEffect, self.funcBBox]
+        buttonText = ["DepthMap", "ColorMap", "NoShade", "LightEff", "Bounding Box", "Rasterizing"]
+        buttonFunc = [self.funcDepthMap, self.funcColorMap, self.funcNoShade, self.funcLightEffect, self.funcBBox, self.funcRasterize]
         subgrid, self.func1Edit = self.createGroupBox("Scene Generation", label, editDefault, buttonText, buttonFunc)
         mainGrid.addWidget(subgrid, 4, 0)
 
-        label = [["DepthMap:", "Width", "Height", "MeshUp Inv", "FreeModelNum", "Thread"],["ColorImg:", "SeqDataset"]]
-        editDefault = [["Dataset/Dataset03/DepthBin03.txt","300", "300", "9", "4", "12"],["Dataset/Dataset03/Color03.png", "Dataset/SimulFW/"]]
-        buttonText = ["MeshUp", "Texture Overay", "Texure Int", "TextureView", "bulkDS overlay"]
-        buttonFunc = [self.func2MeshUp, self.func2TexOveray, self.func2TexInt, self.func2TexView, self.func2bulkDsOverlay]
+        label = [["DepthMap:", "Width", "Height", "MeshUp Inv", "FreeModelNum", "Thread"],["ColorImg:", "SeqDataset", "meshupIdx","overayCnt"]]
+        editDefault = [["Dataset/Dataset03/DepthBin03.txt","300", "300", "9", "4", "12"],["Dataset/Dataset03/Color03.png", "Dataset/DATASet_recon2/","0","15"]]
+        buttonText = ["MeshUp", "Texture Overay", "Texure Int", "TextureView", "bulkDS overlay", "Save Recon", "Load Recon", "compare recon" ]
+        buttonFunc = [self.func2MeshUp, self.func2TexOveray, self.func2TexInt, self.func2TexView, self.func2bulkDsOverlay,
+                      self.func2saveRecon, self.func2loadRecon, self.func2compareRecon]
         subgrid, self.func2Edit = self.createGroupBox("Mesh up, Texture Overay", label, editDefault, buttonText, buttonFunc)
         mainGrid.addWidget(subgrid, 5, 0)
 
         self.setLayout(mainGrid)
         self.setWindowTitle("Thalamus Engine UI")
-
+        self.meshup_pose = [0,0,0,0,0,0]
         self.resize(600, -1)
+
+
+    def func2compareRecon(self):
+        SetGlobalPosition(0, 0, -900)
+        SetGlobalAttitude(0,24, 0)
+        InitializeRenderFacet(-1, -1)
+
+        #+get Current Texture view
+        TheadNum = int(self.func2Edit[5].text())
+        SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = self.getFunc1Param()
+        TextuedView = np.zeros((DestHeight, DestWidth, 3), np.uint8)
+
+        getTextureImg(TheadNum, TextuedView.ctypes, SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID)
+        TextuedView = cv2.resize(TextuedView, (300, 300), interpolation=cv2.INTER_AREA)
+        TextuedView = cv2.cvtColor(TextuedView, cv2.COLOR_BGR2GRAY)
+        cv2.imshow("Texture View", TextuedView)
+        # +get Current Texture view
+
+
+
+        TargetFrame = 750
+        cap = cv2.VideoCapture("Dataset/DATASet_recon2/img.avi")
+        cap.set(cv2.CAP_PROP_POS_FRAMES, TargetFrame)
+        success, TargeImage = cap.read()
+        TargeImage = cv2.resize(TargeImage, (300, 300), interpolation=cv2.INTER_AREA)
+        TargeImage = cv2.cvtColor(TargeImage, cv2.COLOR_BGR2GRAY)
+
+        cv2.imshow("Target Image", TargeImage)
+
+        #+matching
+        matching = get_SIFT_mathching(TargeImage, TextuedView)
+
+        filt_matching = []
+        for matching in matching:
+            if math.fabs(matching[0][1] - matching[1][1]) < 10:
+                filt_matching.append(matching)
+
+        resimg = show_matching(TargeImage, TextuedView, filt_matching)
+        cv2.imshow("resimg", resimg)
+        #-matching
+
+
+        Depth_Map = np.zeros((300, 300), np.float32)
+        Depth_Mask = np.zeros((300, 300, 3), np.uint8)
+        if 0 != LoadBinDepthMapPnt("Dataset/DATASet_recon2/DepthMap.bin", 300, 300, 0, 10000, Depth_Map.ctypes, Depth_Mask.ctypes, TargetFrame):
+
+            imgSzX = 1280
+            imgSzY = 720
+            avg_tgt = np.array([0., 0., 0.])
+            avg_tex = np.array([0., 0., 0.])
+            cnt = 0
+            for matching in filt_matching:
+                cnt += 1
+                targetViewPnt = matching[0]
+                tgtdepth = Depth_Map[int(targetViewPnt[1])][int(targetViewPnt[0])]
+                tgtX = targetViewPnt[0] * imgSzX / 300
+                tgtY = targetViewPnt[1] * imgSzY / 300
+                tgt3d = Pixelto3D(tgtX, tgtY, tgtdepth)
+                avg_tgt += np.array(tgt3d)
+
+                textViewPnt = matching[1]
+                tex_viewX = textViewPnt[0] * imgSzX / 300
+                tex_viewY = textViewPnt[1] * imgSzY / 300
+                tmpdist, _, _, _, _, _ = ReturnDistance(tex_viewX, tex_viewY)
+                texPnt = Pixelto3D(tex_viewX, tex_viewY, tmpdist)
+                avg_tex += np.array(texPnt)
+                #print(tgt3d, texPnt)
+
+            avg_tgt /= cnt
+            avg_tex /= cnt
+
+            unit_tgt = avg_tgt / np.sqrt(np.sum(avg_tgt * avg_tgt))
+            unit_tex = avg_tex / np.sqrt(np.sum(avg_tex * avg_tex))
+
+            print(cnt, avg_tgt, avg_tex, avg_tgt - avg_tex, math.acos(np.sum(unit_tgt*unit_tex)) / math.pi * 180)
+        else:
+            print("error")
+
+
+    def func2saveRecon(self):
+        cmdIdx = self.func2Edit[8].text()
+        SaveReconstruction(4, "recon"+cmdIdx+".bin", self.meshup_pose)
+    def func2loadRecon(self):
+        cmdIdx = self.func2Edit[8].text()
+        res = LoadReconstruction(4, "recon"+cmdIdx+".bin")
+        print(res)
+        pose = res[1]
+        setModelPosRot(1, pose[0], pose[1], pose[2], 0, 0, 0)
+        setModelPosRot(2, 0, 0, 0, pose[3], pose[5], pose[4])
+
+        InitializeRenderFacet(-1, -1)
 
     def func2bulkDsOverlay(self):
         datasetPath = self.func2Edit[7].text()
-        image_FileName, groundtruth_Filename, depth_Filename, depth_Width, depth_Height = getMetadata(datasetPath=datasetPath, filename="meta.json")
+        cmdIdx = int(self.func2Edit[8].text())
+        overayCnt = int(self.func2Edit[9].text())
+
+        #+dataset Loading
+        image_FileName, groundtruth_Filename, depth_Filename, IMULog, MotionContolLog, RoverCmdLog, depth_Width, depth_Height = getMetadata(datasetPath=datasetPath, filename="meta.json")
+        RoverCmd = getTextData(RoverCmdLog)
+        McLog = getTextData(MotionContolLog)
+        # -dataset Loading
+
+        # + Robot Cmd Log Analysis
+        cmdPeriod = getPeriodfromRobotCmd(RoverCmd, 60, len(McLog[0]))
+        for period_idx, period in enumerate(cmdPeriod):
+            for mcIdx in range(period.startIdx, period.endIdx):
+                if McLog[1][mcIdx] != 0:  # 0:Stop, 1:Move, 2:Rotation
+                    if cmdPeriod[period_idx].ActualMvIdx == -1:
+                        cmdPeriod[period_idx].ActualMvIdx = mcIdx
+                    if cmdPeriod[period_idx].ActualStopIdx < mcIdx:
+                        cmdPeriod[period_idx].ActualStopIdx = mcIdx
+            period.show()
+        # - Robot Cmd Log Analysis
+
 
         if image_FileName != None:
             imgcnt = 0
             GroundTruth = getGroundTruth(groundtruth_Filename)
+            ThreadNum = 6
 
-
-            #+Mesh up
-            depInv = int(self.func2Edit[3].text())
-            MeshUpType = int(self.func2Edit[4].text())
-            Depth_Map = np.zeros((depth_Height, depth_Width), np.float32)
-            Depth_Mask = np.zeros((depth_Height, depth_Width, 3), np.uint8)
-            if 0 != LoadBinDepthMapPnt(depth_Filename, depth_Width, depth_Height, 0, 10000, Depth_Map.ctypes, Depth_Mask.ctypes, imgcnt):
-                ret = ObjMeshUp(depth_Width, depth_Height, MeshUpType, depInv)
-                print("ObjMeshUp:", ret)
-                InitializeRenderFacet(-1, -1)
-            # +Mesh up
-
-
+            prcCnt = 0
             cap = cv2.VideoCapture(image_FileName)
             while cap.isOpened():
                 success, image = cap.read()
@@ -100,31 +202,61 @@ class Window(QWidget):
                     print("Dataset Complete")
                     break
 
+                if imgcnt < cmdPeriod[cmdIdx].ActualMvIdx:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, cmdPeriod[cmdIdx].ActualMvIdx)
+                    imgcnt = cmdPeriod[cmdIdx].ActualMvIdx
+
+                    self.meshup_pose = GroundTruth[imgcnt]
+
+                    # +Mesh up
+                    depInv = int(self.func2Edit[3].text())
+                    MeshUpType = int(self.func2Edit[4].text())
+                    Depth_Map = np.zeros((depth_Height, depth_Width), np.float32)
+                    Depth_Mask = np.zeros((depth_Height, depth_Width, 3), np.uint8)
+                    if 0 != LoadBinDepthMapPnt(depth_Filename, depth_Width, depth_Height, 0, 10000, Depth_Map.ctypes, Depth_Mask.ctypes, imgcnt):
+                        ret = ObjMeshUp(depth_Width, depth_Height, MeshUpType, depInv)
+                        print("ObjMeshUp:", ret)
+                        InitializeRenderFacet(-1, -1)
+                    # +Mesh up
+
+                    # +store current mesh position
+                    px = GroundTruth[imgcnt][0]
+                    py = GroundTruth[imgcnt][1]
+                    pz = GroundTruth[imgcnt][2]
+                    ax = GroundTruth[imgcnt][3]
+                    ay = GroundTruth[imgcnt][5]
+                    az = GroundTruth[imgcnt][4]
+                    # -store current mesh position
+
+                    setModelPosRot(1, px, py, pz, 0, 0, 0)
+                    setModelPosRot(2, 0, 0, 0, ax, ay, az)  # 순서 중의, y축의 회전의 yaw이다
+
+                    continue
+
+                if cmdPeriod[cmdIdx].ActualStopIdx < imgcnt:
+                    break
+
                 print("imgcnt:", imgcnt, "(GT)x,y,z,r,p,y:", GroundTruth[imgcnt][0], GroundTruth[imgcnt][1], GroundTruth[imgcnt][2], GroundTruth[imgcnt][3], GroundTruth[imgcnt][4], GroundTruth[imgcnt][5])
                 SetGlobalPosition(-GroundTruth[imgcnt][0], -GroundTruth[imgcnt][1], -GroundTruth[imgcnt][2])
-                SetGlobalAttitude(-GroundTruth[imgcnt][3], -GroundTruth[imgcnt][4], -GroundTruth[imgcnt][5])
+                SetGlobalAttitude(-GroundTruth[imgcnt][3], -GroundTruth[imgcnt][5], -GroundTruth[imgcnt][4])
                 InitializeRenderFacet(-1, -1)
 
                 imgcnt += 1
                 cv2.imshow('image', image)
-                """
-                Depth_Map = np.zeros((depth_Height, depth_Width), np.float32)
-                Depth_Mask = np.zeros((depth_Height, depth_Width, 3), np.uint8)
-                if 0 != LoadBinDepthMapPnt(depth_Filename, depth_Width, depth_Height, 0, 10000, Depth_Map.ctypes, Depth_Mask.ctypes, imgcnt):
-                    Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
-                    cv2.imshow("Depth Map", Depth_Map)
-                """
-                #image = cv2.resize(image, (300, 300), interpolation=cv2.INTER_AREA)
+
                 h, w, _ = image.shape
-                TexureOveray(6, image.ctypes, w, h, 1280, 720)
+                TexureOveray(ThreadNum, image.ctypes, w, h, w, h)
 
                 if cv2.waitKey(1) & 0xFF == 27:
                     break
+                if overayCnt == prcCnt:
+                    break
+                prcCnt += 1
 
             cap.release()
         else:
             print("Error on dataset")
-
+        print("meshup complete")
 
 
     def createGroupBox(self, gbxName, labeltext, editDefault, buttonText, buttonFunc):
@@ -363,6 +495,26 @@ class Window(QWidget):
         cv2.imshow("Shade_Img", Shade_Img)
     def funcLightEffect(self):
         print("sss")
+
+    def funcRasterize(self):
+        SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = self.getFunc1Param()
+        Color_width = DestWidth
+        Color_Height = DestHeight
+
+        Color_image = np.zeros((Color_Height, Color_width, 3), np.uint8)
+        Depth_Map = np.zeros((Color_Height, Color_width), np.float32)
+        Depth_Mask = np.zeros((Color_Height, Color_width, 3), np.uint8)
+
+        InitializeRenderFacet(-1, -1)  # refresh
+
+        GetRasterizedImage(Color_image.ctypes, Depth_Map.ctypes, Depth_Mask.ctypes,
+                           Color_width, Color_Height, CPUCore, SrcPosX, SrcPosY, SrcWidth, SrcHeight, ObjID)
+        cv2.imshow("Rasterizing Color Image", Color_image)
+
+        ObjIDMask, FaceIDMask, EdgeMask = cv2.split(Depth_Mask)
+        Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
+        cv2.imshow("Depth Map", Depth_Map)
+        cv2.imshow("Depth Mask", EdgeMask)
 
     def funcBBox(self):
         print("Bound Box")
