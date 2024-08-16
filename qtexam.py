@@ -27,7 +27,7 @@ class Window(QWidget):
         mainGrid = QGridLayout()
 
         label = [["ScriptFile:", "EngineName:"]]
-        editDefault = [["Script.txt", "Thalamus QT Example"]]
+        editDefault = [["ScriptFreeModel.txt", "Thalamus QT Example"]]
         buttonText = ["Engine Start"]
         buttonFunc = [self.InitEngine]
         subgrid, self.startEdit = self.createGroupBox("Global Coord Test", label, editDefault, buttonText, buttonFunc)
@@ -62,10 +62,10 @@ class Window(QWidget):
         mainGrid.addWidget(subgrid, 4, 0)
 
         label = [["DepthMap:", "Width", "Height", "MeshUp Inv", "FreeModelNum", "Thread"],["ColorImg:", "SeqDataset", "meshupIdx","overayCnt"]]
-        editDefault = [["Dataset/Dataset03/DepthBin03.txt","300", "300", "9", "4", "12"],["Dataset/Dataset03/Color03.png", "Dataset/DATASet_recon2/","0","15"]]
-        buttonText = ["MeshUp", "Texture Overay", "Texure Int", "TextureView", "bulkDS overlay", "Save Recon", "Load Recon", "compare recon" ]
-        buttonFunc = [self.func2MeshUp, self.func2TexOveray, self.func2TexInt, self.func2TexView, self.func2bulkDsOverlay,
-                      self.func2saveRecon, self.func2loadRecon, self.func2compareRecon]
+        editDefault = [["Dataset/Dataset03/DepthBin03.txt","300", "300", "9", "5", "12"],["Dataset/Dataset03/Color03.png", "Dataset/DATASet_dronetest/","0","15"]]
+        buttonText = ["MeshUp", "Texture Overay", "Texure Int", "TextureView", "TextureView_subcam", "bulkDS overlay", "Save Recon", "Load Recon", "compare recon" ]
+        buttonFunc = [self.func2MeshUp, self.func2TexOveray, self.func2TexInt, self.func2TexView, self.func2TexView_subcam,
+                      self.func2bulkDsOverlay, self.func2saveRecon, self.func2loadRecon, self.func2compareRecon]
         subgrid, self.func2Edit = self.createGroupBox("Mesh up, Texture Overay", label, editDefault, buttonText, buttonFunc)
         mainGrid.addWidget(subgrid, 5, 0)
 
@@ -91,8 +91,6 @@ class Window(QWidget):
         cv2.imshow("Texture View", TextuedView)
         # +get Current Texture view
 
-
-
         TargetFrame = 750
         cap = cv2.VideoCapture("Dataset/DATASet_recon2/img.avi")
         cap.set(cv2.CAP_PROP_POS_FRAMES, TargetFrame)
@@ -113,7 +111,6 @@ class Window(QWidget):
         resimg = show_matching(TargeImage, TextuedView, filt_matching)
         cv2.imshow("resimg", resimg)
         #-matching
-
 
         Depth_Map = np.zeros((300, 300), np.float32)
         Depth_Mask = np.zeros((300, 300, 3), np.uint8)
@@ -154,10 +151,13 @@ class Window(QWidget):
 
     def func2saveRecon(self):
         cmdIdx = self.func2Edit[8].text()
-        SaveReconstruction(4, "recon"+cmdIdx+".bin", self.meshup_pose)
+        SaveReconstruction(5, "recon"+cmdIdx+".bin", self.meshup_pose)
     def func2loadRecon(self):
+        print("GetCameraSize", GetCameraSize(-1))
+        print("GetCameraSize", GetCameraSize(0))
+
         cmdIdx = self.func2Edit[8].text()
-        res = LoadReconstruction(4, "recon"+cmdIdx+".bin")
+        res = LoadReconstruction(5, "recon"+cmdIdx+".bin")
         print(res)
         pose = res[1]
         setModelPosRot(1, pose[0], pose[1], pose[2], 0, 0, 0)
@@ -579,6 +579,21 @@ class Window(QWidget):
 
         getTextureImg(TheadNum, TextuedView.ctypes, SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID)
         cv2.imshow("Texture View", TextuedView)
+
+    def func2TexView_subcam(self):
+        TheadNum = int(self.func2Edit[5].text())
+        SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = self.getFunc1Param()
+        TextuedView = np.zeros((DestHeight, DestWidth, 3), np.uint8)
+
+        SetDisplayCamera(-1)
+        getTextureImg(TheadNum, TextuedView.ctypes, SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID)
+        cv2.imshow("Texture View Main view", TextuedView)
+
+        SetDisplayCamera(0) #960, 720
+        getTextureImg(TheadNum, TextuedView.ctypes, SrcPosX, SrcPosY, 960, SrcHeight, DestWidth, DestHeight, ObjID)
+        cv2.imshow("Texture View Sub View", TextuedView)
+
+
     #-Function 2
 if __name__ == '__main__':
     print(cv2.__version__)
