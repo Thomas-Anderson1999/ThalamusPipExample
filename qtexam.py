@@ -27,7 +27,7 @@ class Window(QWidget):
         mainGrid = QGridLayout()
 
         label = [["ScriptFile:", "EngineName:"]]
-        editDefault = [["ScriptFreeModel.txt", "Thalamus QT Example"]]
+        editDefault = [["Script.txt", "Thalamus QT Example"]]
         buttonText = ["Engine Start"]
         buttonFunc = [self.InitEngine]
         subgrid, self.startEdit = self.createGroupBox("Global Coord Test", label, editDefault, buttonText, buttonFunc)
@@ -56,8 +56,8 @@ class Window(QWidget):
 
         label = [["SrcPosX", "SrcPosY", "SrcWidth", "SrcHeight", "DestWidth", "DestHeight"], ["ObjID", "CPU Core"]]
         editDefault = [["0", "0", "1280", "720", "300", "300"], ["-1", "12"]]
-        buttonText = ["DepthMap", "ColorMap", "NoShade", "LightEff", "Bounding Box", "Rasterizing"]
-        buttonFunc = [self.funcDepthMap, self.funcColorMap, self.funcNoShade, self.funcLightEffect, self.funcBBox, self.funcRasterize]
+        buttonText = ["DepthMap", "ColorMap", "NoShade", "LightEff", "Bounding Box", "Rasterizing", "VideoDataSet"]
+        buttonFunc = [self.funcDepthMap, self.funcColorMap, self.funcNoShade, self.funcLightEffect, self.funcBBox, self.funcRasterize, self.VideoDataSet]
         subgrid, self.func1Edit = self.createGroupBox("Scene Generation", label, editDefault, buttonText, buttonFunc)
         mainGrid.addWidget(subgrid, 4, 0)
 
@@ -471,6 +471,7 @@ class Window(QWidget):
         GetDepthMap(Depth_Map.ctypes, Depth_Mask.ctypes, DestWidth, DestHeight, CPUCore, SrcPosX, SrcPosY, SrcWidth, SrcHeight, ObjID)
         t1 = time.monotonic() - t0
         print("Time elapsed: ", t1)
+        SaveRawSingleDepthFile("DepthMap.bin", Depth_Map)
 
         ObjIDMask, FaceIDMask, EdgeMask = cv2.split(Depth_Mask)
         Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
@@ -515,6 +516,53 @@ class Window(QWidget):
         Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
         cv2.imshow("Depth Map", Depth_Map)
         cv2.imshow("Depth Mask", EdgeMask)
+
+    def VideoDataSet(self):
+        SrcPosX, SrcPosY, SrcWidth, SrcHeight, _, _, ObjID, CPUCore = self.getFunc1Param()
+
+        DestWidth = 256
+        DestHeight = 256
+        Depth_Map = np.zeros((DestHeight, DestWidth), np.float32)
+        Depth_Mask = np.zeros((DestHeight, DestWidth, 3), np.uint8)
+        fp_depth = open("vid_dataset/DepthMap.bin", "wb")
+
+        vid_width = 512
+        vid_height = 512
+        output_filename = "vid_dataset/img.avi"
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        writer = cv2.VideoWriter(output_filename, fourcc, 30, (vid_width, vid_height))
+        Shade_Mask = np.zeros((vid_height, vid_width, 3), np.uint8)
+        Shade_Img = np.zeros((vid_height, vid_width, 3), np.uint8)
+
+        if not writer.isOpened():
+            raise Exception("Can't open video file")
+
+        f_log = open("vid_dataset/fwLog.txt", "w")
+        f_log.write("sr: 0 Int MV 1 2500 -11600\n")
+
+        for imgcnt, z_pos in enumerate(range(1000, 0, -10)):
+            self.globalCoordEdit[2].setText(str(z_pos))
+            self.globalPosAttSet()
+
+            GetShadeImage(Shade_Img.ctypes, Shade_Mask.ctypes, vid_width, vid_height, CPUCore, SrcPosX, SrcPosY, SrcWidth, SrcHeight, ObjID)
+            writer.write(Shade_Img)
+            cv2.imshow("Shade_Img", Shade_Img)
+
+            GetDepthMap(Depth_Map.ctypes, Depth_Mask.ctypes, DestWidth, DestHeight, CPUCore, SrcPosX, SrcPosY, SrcWidth, SrcHeight, ObjID)
+            fp_depth.write(Depth_Map.astype(np.float32).tobytes())
+
+            Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
+            cv2.imshow("Depth Map", Depth_Map)
+
+            enc = int(11600 * imgcnt / 100)
+            f_log.write(f"sr: {imgcnt} PF>{enc}	{enc}	-5	5	-212	149	2	0	\n")
+            cv2.waitKey(1)
+            print("image:", imgcnt)
+
+        f_log.write(f"sr: {imgcnt} Int EN -1 1\n")
+        writer.release()
+        fp_depth.close()
+        print("complete")
 
     def funcBBox(self):
         print("Bound Box")
