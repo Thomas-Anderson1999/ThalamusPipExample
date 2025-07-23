@@ -125,7 +125,7 @@ def Redraw(self):
     cv2.imshow("Depth Mask", EdgeMask)
 
 def SetObj(self):
-    objid = int(self.getUIVal("LightID1")[0])
+    objid = int(self.getUIVal("ObjID1")[0])
     ambient = self.getUIVal("Ambient1")[0]
     self.setUIVal("Light1_Ambient", str(ambient))
     diffuse = self.getUIVal("Diffuse1")[0]
