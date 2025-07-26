@@ -80,7 +80,8 @@ def _enginestart(AsmFileName):
             if errCode & 2 != 0:
                 errMsg += "script"
             return False
-
+        else:
+            InitEngine(AsmFileName, 1280, 720, 1)
         StartExt3DEngine(AsmFileName, SimWindowText)
     else:
         return False
@@ -101,7 +102,7 @@ def Redraw(self):
             self.isLoadEngine = True
 
     #print(self.getUIVal("Edit1")[0], self.getUIVal("Check1")[0], self.getUIVal("Check2")[0], self.getUIVal("Weight")[0], self.getUIVal("CB_ITEM1")[0])
-    SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = (0,0,1280,720,640,480,-1,12)
+    SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = (0,0,1280,720,300,300,-1,12)
     Color_width = DestWidth
     Color_Height = DestHeight
 
@@ -164,3 +165,33 @@ def SetLight(self):
 
     SetObjPos(Lightid, tpm_X1, tpm_Y1, tpm_Z1)
 
+    """
+    SetProcessingEngineIndex(1)
+    SetGlobalPosition(-tpm_X1, -tpm_Y1, -tpm_Z1)
+    SetGlobalAttitude(245, 180, 0)
+
+    SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = (0, 0, 1280, 720, 640, 480, -1, 12)
+    Color_width = DestWidth
+    Color_Height = DestHeight
+
+    Color_image = np.zeros((Color_Height, Color_width, 3), np.uint8)
+    Depth_Map = np.zeros((Color_Height, Color_width), np.float32)
+    Depth_Mask = np.zeros((Color_Height, Color_width, 3), np.uint8)
+
+    t0 = time.monotonic()
+    InitializeRenderFacet(-1, -1)  # refresh
+    t1 = time.monotonic()
+    GetRasterizedImage(Color_image.ctypes, Depth_Map.ctypes, Depth_Mask.ctypes,
+                       Color_width, Color_Height, CPUCore, SrcPosX, SrcPosY, SrcWidth, SrcHeight, ObjID)
+    t2 = time.monotonic()
+    print("render Time elapsed: ", t1 - t0, t2 - t1, t2 - t0)
+
+    cv2.imshow("Rasterizing Color Image", Color_image)
+
+    ObjIDMask, FaceIDMask, EdgeMask = cv2.split(Depth_Mask)
+    Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
+    cv2.imshow("Depth Map", Depth_Map)
+    cv2.imshow("Depth Mask", EdgeMask)
+
+    SetProcessingEngineIndex(0)
+    """
