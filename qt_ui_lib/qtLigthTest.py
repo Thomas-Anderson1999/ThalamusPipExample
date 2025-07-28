@@ -102,7 +102,7 @@ def Redraw(self):
             self.isLoadEngine = True
 
     #print(self.getUIVal("Edit1")[0], self.getUIVal("Check1")[0], self.getUIVal("Check2")[0], self.getUIVal("Weight")[0], self.getUIVal("CB_ITEM1")[0])
-    SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = (0,0,1280,720,300,300,-1,12)
+    SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = (0,0,1280,720,640,480,-1,12)
     Color_width = DestWidth
     Color_Height = DestHeight
 
@@ -136,7 +136,6 @@ def SetObj(self):
 
     Ks = self.getUIVal("Ks1")[0] * 100
     self.setUIVal("Light1_Ks", str(Ks))
-
 
     param = [ambient, diffuse, specular, Ks]
     SetObjLightProperty(objid, param)
