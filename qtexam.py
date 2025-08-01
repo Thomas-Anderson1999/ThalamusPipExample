@@ -494,6 +494,7 @@ class Window(QWidget):
 
         GetColorImageNoShade(Shade_Img.ctypes, Shade_Mask.ctypes, DestWidth, DestHeight, CPUCore, SrcPosX, SrcPosY, SrcWidth, SrcHeight)
         cv2.imshow("Shade_Img", Shade_Img)
+
     def funcLightEffect(self):
         print("sss")
 
