@@ -6,6 +6,7 @@ import sys
 #+UI
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import QApplication, QWidget
 #-UI
 
 #from ..qt_ui_lib.qt_ui_eledef import *

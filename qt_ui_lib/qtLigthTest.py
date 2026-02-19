@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QMessageBox
 #-ui
 
 import cv2
-
+from PyQt5.QtCore import *
 from ThalamusEngine.Interface import *
 
 def init_ui(self):
@@ -16,6 +16,7 @@ def init_ui(self):
         UIElement(_type=UIElementType.EDIT, _caption="Script", _default_val="Script.txt"),
         UIElement(_type=UIElementType.BUTTON, _caption="EngineStart", _default_val=partial(EngineStart, self)),
         UIElement(_type=UIElementType.BUTTON, _caption="Redraw", _default_val=partial(Redraw, self)),
+        UIElement(_type=UIElementType.BUTTON, _caption="Record", _default_val=partial(Record, self)),
     ]
 
     start_ele_list2 = [
@@ -64,6 +65,7 @@ def init_ui(self):
         UIElement(_type=UIElementType.NEW_LINE),
     ]
 
+    self.out = None
     self.isLoadEngine = False
     return "Light Test", ["Engine Setting","Object1 Light Property", "Light1 Property"], [start_ele_list1, start_ele_list2, start_ele_list3]
 
@@ -95,14 +97,42 @@ def EngineStart(self):
     if _enginestart(AsmFileName):
         self.isLoadEngine = True
 
+def Record(self):
+
+    output_path = 'output.avi'
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')  # XVID 코덱
+    self.out = cv2.VideoWriter(output_path, fourcc, 30., (256,256))
+
+    self.timer = QTimer(self)
+    self.timer.start(100)
+
+    self.timer.timeout.connect(partial(timer_slot, self))
+    self.Cnt = 0
+
+def timer_slot(self):
+    name = threading.currentThread().getName()
+    print(self.Cnt)
+    self.Cnt += 1
+    setModelPosRot(1, 0., 1000., 2500.0 - self.Cnt*10, 0., 0., 0.)
+    #InitializeRenderFacet(-1, -1)  # refresh
+    _Redraw(self)
+
+    if 100 < self.Cnt:
+        if self.out is not None:
+            self.out.release()
+            self.timer.stop()
+
 def Redraw(self):
+    _Redraw(self)
+
+def _Redraw(self):
     if self.isLoadEngine is False:
         AsmFileName = self.getUIVal("Script")[0].encode('UTF-8')
         if _enginestart(AsmFileName):
             self.isLoadEngine = True
 
     #print(self.getUIVal("Edit1")[0], self.getUIVal("Check1")[0], self.getUIVal("Check2")[0], self.getUIVal("Weight")[0], self.getUIVal("CB_ITEM1")[0])
-    SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = (0,0,1280,720,1280,720,-1,12)
+    SrcPosX, SrcPosY, SrcWidth, SrcHeight, DestWidth, DestHeight, ObjID, CPUCore = (0,0,1280,720,256,256,-1,12)
     Color_width = DestWidth
     Color_Height = DestHeight
 
@@ -120,6 +150,10 @@ def Redraw(self):
 
     cv2.imshow("Rasterizing Color Image", Color_image)
 
+    if self.out is not None:
+        self.out.write(Color_image)
+        SaveRawSingleDepthFile("depth.bin", Depth_Map)
+
     ObjIDMask, FaceIDMask, EdgeMask = cv2.split(Depth_Mask)
     Depth_Map = cv2.normalize(Depth_Map, None, alpha=0, beta=1.0, norm_type=cv2.NORM_MINMAX)
     cv2.imshow("Depth Map", Depth_Map)
@@ -130,11 +164,11 @@ def SetObj(self):
     ambient = self.getUIVal("Ambient1")[0]
     self.setUIVal("Light1_Ambient", str(ambient))
     diffuse = self.getUIVal("Diffuse1")[0]
-    self.setUIVal("Light1_Diffuse", str(diffuse))
+    self.setUIVal("Light1_Diffuse", str(2*diffuse))
     specular = self.getUIVal("Specular1")[0]
-    self.setUIVal("Light1_Specular", str(specular))
+    self.setUIVal("Light1_Specular", str(3*specular))
 
-    Ks = self.getUIVal("Ks1")[0] * 100
+    Ks = self.getUIVal("Ks1")[0] * 30
     self.setUIVal("Light1_Ks", str(Ks))
 
     param = [ambient, diffuse, specular, Ks]
